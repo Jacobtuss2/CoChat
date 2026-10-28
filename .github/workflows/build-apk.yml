@@ -1,10 +1,10 @@
+```yaml
 name: Build CoChat Android App
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,10 +24,12 @@ jobs:
           java-version: '17'
 
       - name: Create CoChat project files
+        shell: bash
         run: |
+          set -e
           mkdir -p app/src/main/java/com/cochat/app
 
-          cat > settings.gradle.kts <<'EOF'
+          cat > settings.gradle.kts <<'FILE_END'
           pluginManagement {
               repositories {
                   google()
@@ -44,23 +46,23 @@ jobs:
           }
           rootProject.name = "CoChat"
           include(":app")
-          EOF
+          FILE_END
 
-          cat > build.gradle.kts <<'EOF'
+          cat > build.gradle.kts <<'FILE_END'
           plugins {
               id("com.android.application") version "8.7.3" apply false
               id("org.jetbrains.kotlin.android") version "2.0.21" apply false
               id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false
           }
-          EOF
+          FILE_END
 
-          cat > gradle.properties <<'EOF'
+          cat > gradle.properties <<'FILE_END'
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           android.useAndroidX=true
           kotlin.code.style=official
-          EOF
+          FILE_END
 
-          cat > app/build.gradle.kts <<'EOF'
+          cat > app/build.gradle.kts <<'FILE_END'
           plugins {
               id("com.android.application")
               id("org.jetbrains.kotlin.android")
@@ -82,6 +84,15 @@ jobs:
               buildFeatures {
                   compose = true
               }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
           }
 
           dependencies {
@@ -91,16 +102,16 @@ jobs:
               implementation("androidx.compose.ui:ui-tooling-preview")
               implementation("androidx.compose.material3:material3")
               implementation("androidx.compose.material:material-icons-extended")
-              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+              debugImplementation("androidx.compose.ui:ui-tooling")
           }
-          EOF
+          FILE_END
 
-          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          cat > app/src/main/AndroidManifest.xml <<'FILE_END'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <application
-                  android:allowBackup="true"
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar"
                   android:label="CoChat"
-                  android:theme="@android:style/Theme.Material.NoActionBar">
+                  android:allowBackup="true">
                   <activity
                       android:name=".MainActivity"
                       android:exported="true">
@@ -111,26 +122,21 @@ jobs:
                   </activity>
               </application>
           </manifest>
-          EOF
+          FILE_END
 
-          cat > app/src/main/java/com/cochat/app/MainActivity.kt <<'EOF'
+          cat > app/src/main/java/com/cochat/app/MainActivity.kt <<'FILE_END'
           package com.cochat.app
 
           import android.os.Bundle
           import androidx.activity.ComponentActivity
           import androidx.activity.compose.setContent
           import androidx.compose.foundation.background
+          import androidx.compose.foundation.clickable
           import androidx.compose.foundation.layout.*
           import androidx.compose.foundation.lazy.LazyColumn
           import androidx.compose.foundation.lazy.items
-          import androidx.compose.foundation.shape.CircleShape
           import androidx.compose.foundation.shape.RoundedCornerShape
           import androidx.compose.foundation.text.BasicTextField
-          import androidx.compose.material.icons.Icons
-          import androidx.compose.material.icons.filled.Add
-          import androidx.compose.material.icons.filled.Chat
-          import androidx.compose.material.icons.filled.Explore
-          import androidx.compose.material.icons.filled.Settings
           import androidx.compose.material3.*
           import androidx.compose.runtime.*
           import androidx.compose.ui.Alignment
@@ -141,10 +147,10 @@ jobs:
           import androidx.compose.ui.unit.sp
 
           private val Background = Color(0xFF17191F)
-          private val Panel = Color(0xFF22252E)
-          private val Accent = Color(0xFF778BFF)
-          private val TextMain = Color(0xFFF3F4F8)
-          private val TextMuted = Color(0xFFADB2C2)
+          private val Panel = Color(0xFF20232B)
+          private val Accent = Color(0xFF7289DA)
+          private val MainText = Color(0xFFF3F4F6)
+          private val Muted = Color(0xFFAAAFBC)
 
           class MainActivity : ComponentActivity() {
               override fun onCreate(savedInstanceState: Bundle?) {
@@ -153,229 +159,179 @@ jobs:
               }
           }
 
-          data class ChatMessage(val author: String, val text: String)
-
           @Composable
           fun CoChatApp() {
               var tab by remember { mutableStateOf("Chats") }
-              var draft by remember { mutableStateOf("") }
-              var room by remember { mutableStateOf("general") }
-              var showNewRoom by remember { mutableStateOf(false) }
-              var newRoom by remember { mutableStateOf("") }
-              val rooms = remember { mutableStateListOf("general", "memes", "gaming") }
+              var message by remember { mutableStateOf("") }
+              var channel by remember { mutableStateOf("general") }
+              var showDialog by remember { mutableStateOf(false) }
               val messages = remember {
                   mutableStateListOf(
-                      ChatMessage("CoChat", "Welcome to CoChat! Your community starts here."),
-                      ChatMessage("Alex", "Hey everyone 👋"),
-                      ChatMessage("Sam", "What games are you playing?"),
-                      ChatMessage("Jordan", "This app is just getting started!")
+                      "CoChat" to "Welcome to CoChat! Your community starts here.",
+                      "Alex" to "Hey everyone 👋",
+                      "Sam" to "This is our new chat space!"
                   )
               }
 
-              MaterialTheme(
-                  colorScheme = darkColorScheme(
-                      primary = Accent,
-                      background = Background,
-                      surface = Panel
-                  )
-              ) {
-                  Column(
+              MaterialTheme(colorScheme = darkColorScheme(
+                  primary = Accent,
+                  background = Background,
+                  surface = Panel
+              )) {
+                  Row(
                       Modifier.fillMaxSize().background(Background)
                   ) {
-                      Row(
-                          Modifier.fillMaxWidth().background(Panel).padding(16.dp),
-                          verticalAlignment = Alignment.CenterVertically
+                      Column(
+                          Modifier.width(64.dp).fillMaxHeight().background(Color(0xFF111319))
+                              .padding(vertical = 12.dp),
+                          horizontalAlignment = Alignment.CenterHorizontally
                       ) {
-                          Box(
-                              Modifier.size(42.dp).background(Accent, RoundedCornerShape(14.dp)),
-                              contentAlignment = Alignment.Center
-                          ) {
-                              Text("C", fontSize = 25.sp, fontWeight = FontWeight.Black, color = Color.White)
-                          }
-                          Spacer(Modifier.width(12.dp))
-                          Column(Modifier.weight(1f)) {
-                              Text("CoChat", color = TextMain, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                              Text("Your people. Your place.", color = TextMuted, fontSize = 12.sp)
-                          }
-                          Text("● ONLINE", color = Color(0xFF70E0A0), fontSize = 11.sp)
-                      }
-
-                      Row(Modifier.weight(1f).fillMaxWidth()) {
-                          Column(
-                              Modifier.width(68.dp).fillMaxHeight().background(Color(0xFF1D2027)).padding(top = 12.dp),
-                              horizontalAlignment = Alignment.CenterHorizontally
-                          ) {
-                              listOf("C", "🎮", "🌎", "🎨").forEach {
-                                  Box(
-                                      Modifier.padding(bottom = 12.dp).size(44.dp)
-                                          .background(if (it == "C") Accent else Panel, RoundedCornerShape(15.dp)),
-                                      contentAlignment = Alignment.Center
-                                  ) { Text(it, color = Color.White, fontSize = 20.sp) }
-                              }
+                          listOf("C", "🎮", "🎨", "+").forEach { icon ->
                               Box(
-                                  Modifier.size(44.dp).background(Color(0xFF294B3D), CircleShape),
+                                  Modifier.padding(vertical = 6.dp)
+                                      .size(44.dp)
+                                      .background(if (icon == "C") Accent else Panel, RoundedCornerShape(16.dp))
+                                      .clickable { if (icon == "+") showDialog = true },
                                   contentAlignment = Alignment.Center
                               ) {
-                                  Icon(Icons.Default.Add, contentDescription = "Add community", tint = Color.White)
-                              }
-                          }
-
-                          Column(Modifier.weight(1f).fillMaxHeight()) {
-                              Row(
-                                  Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
-                                  verticalAlignment = Alignment.CenterVertically
-                              ) {
-                                  Text("My Community", color = TextMain, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                                  Text("⌄", color = TextMuted, fontSize = 20.sp)
-                              }
-
-                              Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-                                  NavigationButton("Chats", tab == "Chats", Modifier.weight(1f)) { tab = "Chats" }
-                                  NavigationButton("Discover", tab == "Discover", Modifier.weight(1f)) { tab = "Discover" }
-                                  NavigationButton("Settings", tab == "Settings", Modifier.weight(1f)) { tab = "Settings" }
-                              }
-
-                              when (tab) {
-                                  "Chats" -> {
-                                      Row(Modifier.fillMaxWidth().padding(start = 12.dp, top = 16.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                          Text("TEXT CHANNELS", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                                          IconButton(onClick = { showNewRoom = true }, modifier = Modifier.size(28.dp)) {
-                                              Icon(Icons.Default.Add, contentDescription = "Add channel", tint = TextMuted)
-                                          }
-                                      }
-
-                                      rooms.forEach { channel ->
-                                          TextButton(
-                                              onClick = { room = channel },
-                                              modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                                              colors = ButtonDefaults.textButtonColors(
-                                                  containerColor = if (room == channel) Panel else Color.Transparent
-                                              )
-                                          ) {
-                                              Text("#  $channel", color = if (room == channel) TextMain else TextMuted, modifier = Modifier.fillMaxWidth())
-                                          }
-                                      }
-
-                                      HorizontalDivider(color = Panel, modifier = Modifier.padding(vertical = 8.dp))
-
-                                      Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                                          Text("# $room", color = TextMain, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                                      }
-                                      Text("Welcome to the #$room channel!", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 8.dp))
-
-                                      LazyColumn(
-                                          modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp),
-                                          verticalArrangement = Arrangement.spacedBy(12.dp)
-                                      ) {
-                                          items(messages) { message ->
-                                              Row(verticalAlignment = Alignment.Top) {
-                                                  Box(
-                                                      Modifier.size(36.dp).background(Accent, CircleShape),
-                                                      contentAlignment = Alignment.Center
-                                                  ) {
-                                                      Text(message.author.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
-                                                  }
-                                                  Spacer(Modifier.width(9.dp))
-                                                  Column {
-                                                      Text(message.author, color = TextMain, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                                      Text(message.text, color = TextMuted, fontSize = 14.sp)
-                                                  }
-                                              }
-                                          }
-                                      }
-
-                                      Row(
-                                          Modifier.fillMaxWidth().padding(12.dp).background(Panel, RoundedCornerShape(14.dp)).padding(10.dp),
-                                          verticalAlignment = Alignment.CenterVertically
-                                      ) {
-                                          BasicTextField(
-                                              value = draft,
-                                              onValueChange = { draft = it },
-                                              modifier = Modifier.weight(1f).padding(8.dp),
-                                              textStyle = androidx.compose.ui.text.TextStyle(color = TextMain, fontSize = 14.sp),
-                                              decorationBox = { inner ->
-                                                  if (draft.isEmpty()) Text("Message #$room", color = TextMuted, fontSize = 14.sp)
-                                                  inner()
-                                              }
-                                          )
-                                          Button(
-                                              onClick = {
-                                                  if (draft.isNotBlank()) {
-                                                      messages.add(ChatMessage("You", draft.trim()))
-                                                      draft = ""
-                                                  }
-                                              },
-                                              contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                                          ) { Text("Send") }
-                                      }
-                                  }
-
-                                  "Discover" -> {
-                                      Column(Modifier.padding(16.dp)) {
-                                          Text("Discover communities", color = TextMain, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                                          Spacer(Modifier.height(12.dp))
-                                          listOf("🎮 Gaming Lounge", "🎨 Art & Creativity", "💬 Chill Zone", "🧑‍💻 Developers").forEach { item ->
-                                              Card(
-                                                  Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                                                  colors = CardDefaults.cardColors(containerColor = Panel)
-                                              ) {
-                                                  Column(Modifier.padding(16.dp)) {
-                                                      Text(item, color = TextMain, fontWeight = FontWeight.Bold)
-                                                      Text("A place to meet people and chat.", color = TextMuted, fontSize = 12.sp)
-                                                  }
-                                              }
-                                          }
-                                      }
-                                  }
-
-                                  else -> {
-                                      Column(Modifier.padding(16.dp)) {
-                                          Text("Settings", color = TextMain, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                                          Spacer(Modifier.height(16.dp))
-                                          Text("Your CoChat profile", color = TextMain, fontWeight = FontWeight.Bold)
-                                          Text("Local preview account", color = TextMuted)
-                                          Spacer(Modifier.height(18.dp))
-                                          Text("Appearance", color = TextMain, fontWeight = FontWeight.Bold)
-                                          Text("Dark theme enabled", color = TextMuted)
-                                          Spacer(Modifier.height(18.dp))
-                                          Text("More features coming soon", color = Accent)
-                                          Text("Accounts, friends, synced messages, voice chat, and notifications need backend setup.", color = TextMuted, fontSize = 13.sp)
-                                      }
-                                  }
+                                  Text(icon, color = MainText, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                               }
                           }
                       }
 
-                      Row(
-                          Modifier.fillMaxWidth().background(Color(0xFF20232B)).padding(12.dp),
-                          verticalAlignment = Alignment.CenterVertically
-                      ) {
-                          Box(Modifier.size(36.dp).background(Accent, CircleShape), contentAlignment = Alignment.Center) {
-                              Text("Y", color = Color.White, fontWeight = FontWeight.Bold)
+                      Column(Modifier.fillMaxSize()) {
+                          Row(
+                              Modifier.fillMaxWidth().padding(16.dp),
+                              horizontalArrangement = Arrangement.SpaceBetween,
+                              verticalAlignment = Alignment.CenterVertically
+                          ) {
+                              Column {
+                                  Text("CoChat", color = MainText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                                  Text("Your people. Your space.", color = Muted, fontSize = 12.sp)
+                              }
+                              Text("● Online", color = Color(0xFF58D68D), fontSize = 12.sp)
                           }
-                          Spacer(Modifier.width(10.dp))
-                          Column(Modifier.weight(1f)) {
-                              Text("You", color = TextMain, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                              Text("Online", color = Color(0xFF70E0A0), fontSize = 11.sp)
+
+                          Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                              listOf("Chats", "Discover", "Settings").forEach { item ->
+                                  Text(
+                                      item,
+                                      color = if (tab == item) MainText else Muted,
+                                      modifier = Modifier.padding(end = 18.dp, bottom = 12.dp)
+                                          .clickable { tab = item },
+                                      fontWeight = if (tab == item) FontWeight.Bold else FontWeight.Normal
+                                  )
+                              }
                           }
-                          Text("⚙", color = TextMuted, fontSize = 21.sp)
+
+                          when (tab) {
+                              "Chats" -> {
+                                  Text(
+                                      "# $channel",
+                                      color = MainText,
+                                      fontSize = 18.sp,
+                                      fontWeight = FontWeight.Bold,
+                                      modifier = Modifier.fillMaxWidth().background(Panel).padding(14.dp)
+                                  )
+                                  LazyColumn(
+                                      Modifier.weight(1f).fillMaxWidth().padding(12.dp),
+                                      verticalArrangement = Arrangement.spacedBy(12.dp)
+                                  ) {
+                                      items(messages) { item ->
+                                          Column(
+                                              Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(12.dp))
+                                                  .padding(12.dp)
+                                          ) {
+                                              Text(item.first, color = Accent, fontWeight = FontWeight.Bold)
+                                              Spacer(Modifier.height(4.dp))
+                                              Text(item.second, color = MainText)
+                                          }
+                                      }
+                                  }
+                                  Row(
+                                      Modifier.fillMaxWidth().padding(12.dp)
+                                          .background(Panel, RoundedCornerShape(14.dp)).padding(10.dp),
+                                      verticalAlignment = Alignment.CenterVertically
+                                  ) {
+                                      BasicTextField(
+                                          value = message,
+                                          onValueChange = { message = it },
+                                          modifier = Modifier.weight(1f).padding(8.dp),
+                                          textStyle = androidx.compose.ui.text.TextStyle(color = MainText),
+                                          decorationBox = { inner ->
+                                              if (message.isEmpty()) Text("Message #$channel", color = Muted)
+                                              inner()
+                                          }
+                                      )
+                                      Button(onClick = {
+                                          if (message.isNotBlank()) {
+                                              messages.add("You" to message.trim())
+                                              message = ""
+                                          }
+                                      }) { Text("Send") }
+                                  }
+                              }
+
+                              "Discover" -> Column(Modifier.padding(16.dp)) {
+                                  Text("Discover communities", color = MainText, fontSize = 21.sp)
+                                  Spacer(Modifier.height(12.dp))
+                                  listOf("Gaming 🎮", "Art & Design 🎨", "Music 🎵", "Friends 💬").forEach {
+                                      Text(it, color = MainText, modifier = Modifier.fillMaxWidth()
+                                          .padding(vertical = 8.dp).background(Panel, RoundedCornerShape(12.dp))
+                                          .clickable { channel = it }.padding(16.dp))
+                                  }
+                              }
+
+                              else -> Column(Modifier.padding(16.dp)) {
+                                  Text("Settings", color = MainText, fontSize = 22.sp)
+                                  Spacer(Modifier.height(12.dp))
+                                  Text("Profile: CoChat User", color = MainText)
+                                  Text("Theme: Dark", color = Muted)
+                                  Text("App version: 1.0", color = Muted)
+                              }
+                          }
                       }
                   }
 
-                  if (showNewRoom) {
+                  if (showDialog) {
+                      var newChannel by remember { mutableStateOf("") }
                       AlertDialog(
-                          onDismissRequest = { showNewRoom = false },
+                          onDismissRequest = { showDialog = false },
                           title = { Text("Create a channel") },
                           text = {
                               OutlinedTextField(
-                                  value = newRoom,
-                                  onValueChange = { newRoom = it },
-                                  label = { Text("Channel name") },
-                                  singleLine = true
+                                  value = newChannel,
+                                  onValueChange = { newChannel = it },
+                                  label = { Text("Channel name") }
                               )
                           },
                           confirmButton = {
                               TextButton(onClick = {
-                                  val cleaned = newRoom.trim().lowercase().replace(" ", "-")
-                                  if (cleaned.isNotBlank() && cleaned !in rooms) {
-                              
+                                  if (newChannel.isNotBlank()) channel = newChannel.trim()
+                                  showDialog = false
+                              }) { Text("Create") }
+                          },
+                          dismissButton = {
+                              TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+                          }
+                      )
+                  }
+              }
+          }
+          FILE_END
+
+      - name: Build Android APK
+        run: |
+          set -e
+          curl -fsSL https://services.gradle.org/distributions/gradle-8.9-bin.zip -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          /tmp/gradle-8.9/bin/gradle --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CoChat-Android-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+```
